@@ -50,8 +50,6 @@ def calculate_time_on_unit(tag_value) -> float | None:
     # Minutes are optional if hours are present
     # Hours are optional if minutes are present
     # The regex will match two words when the correct format is found (format and emtpy word)
-    # If more words are found the string is invalid and an Error is raised
-    # We can extract hours and minutes based on the matching groups
     values = pattern.findall(tag_value)
     time = 0
     if len(values) != 2:
@@ -134,6 +132,16 @@ def sync_things_to_reclaim():
                 print(f"Task {things_task['title']} already exists in Reclaim")
 
 
+def print_time_needed():
+    tasks = ReclaimTask.search()
+    time_needed = 0
+    for task in tasks:
+        time_needed += task.duration
+
+    print(f"Time needed to complete {len(tasks)} Tasks: {time_needed} hrs")
+    print(f"Average time needed to complete a Task: {time_needed/len(tasks):.2f} hrs")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Sync Things 3 tasks to Reclaim")
     parser.add_argument("action", help="list, sync")
@@ -143,6 +151,8 @@ def main():
             list_reclaim_tasks()
         case "sync":
             sync_things_to_reclaim()
+        case "time":
+            print_time_needed()
         case _:
             print("Invalid action")
 
