@@ -1,11 +1,21 @@
 #!/opt/homebrew/Caskroom/miniconda/base/envs/things-automation/bin/python3
 
-import things
-from reclaim_sdk.models.task import ReclaimTask
-from datetime import datetime
-import argparse
-from typing import Dict, List
 import re
+from datetime import datetime, timedelta, date
+from pytz import timezone
+from typing import Dict, List, Optional
+
+import things
+import typer
+from typing_extensions import Annotated
+from reclaim_sdk.models.task import ReclaimTask
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+from rich import print as rprint
+
+app = typer.Typer(add_completion=False, no_args_is_help=True)
+console = Console()
 
 regex = (
     r"((\d+\.?\d*) (hours|hrs|hour|hr|h))? ?((\d+\.?\d*) (mins|min|minutes|minute|m))?"
@@ -65,12 +75,6 @@ def calculate_time_on_unit(tag_value) -> float | None:
     return time
 
 
-def list_reclaim_tasks():
-    reclaim_tasks = ReclaimTask().search()
-    for id, task in enumerate(reclaim_tasks):
-        print(f"({id + 1}) {task.name} ")
-
-
 def map_tag_values(things_task, reclaim_task):
     tags_dict = get_task_tags(things_task)
     for tag in tags_dict:
@@ -94,9 +98,14 @@ def map_tag_values(things_task, reclaim_task):
                 print(f"Tag {tag} not recognized")
 
 
+def generate_things_id_tag(things_task) -> str:
+    return f"things_task:{things_task["uuid"]}"
+
+
 def things_to_reclaim(things_task, project_title):
     with ReclaimTask() as reclaim_task:
         reclaim_task.name = "{} {}".format(project_title, things_task["title"])
+        reclaim_task.description = generate_things_id_tag(things_task=things_task)
         set_default_reclaim_values(things_task=things_task, reclaim_task=reclaim_task)
         map_tag_values(things_task=things_task, reclaim_task=reclaim_task)
         reclaim_task_pretty_print(reclaim_task)
@@ -118,21 +127,127 @@ def reclaim_task_pretty_print(task):
     print(f"\tDuration: {task.duration}")
 
 
-def sync_things_to_reclaim():
+def full_name(things_task) -> str:
+    return f"{things_task['project_title']} {things_task['title']}"
+
+
+def get_all_things_tasks() -> List:
+    tasks = []
+    projects = extract_uni_projects()
+    for project in projects:
+        tasks += get_tasks_for_project(project)
+    return tasks
+
+
+def things_reclaim_is_equal(things_task, reclaim_task) -> bool:
+    return full_name(things_task=things_task) == reclaim_task.name
+
+
+@app.command("upload")
+def upload_things_to_reclaim(verbose: bool = False):
+    """
+    Upload things tasks to reclaim
+    """
     projects = extract_uni_projects()
     reclaim_task_names = [task.name for task in ReclaimTask().search()]
+    tasks_uploaded = 0
     for project in projects:
         things_tasks = get_tasks_for_project(project)
         for things_task in things_tasks:
-            full_task_name = "{} {}".format(project["title"], things_task["title"])
+            full_task_name = full_name(things_task=things_task)
             if full_task_name not in reclaim_task_names:
+                tasks_uploaded += 1
                 print(f"Creating task {full_task_name} in Reclaim")
                 things_to_reclaim(things_task, project["title"])
             else:
-                print(f"Task {things_task['title']} already exists in Reclaim")
+                if verbose:
+                    print(f"Task {things_task['title']} already exists in Reclaim")
+    if tasks_uploaded == 0:
+        rprint("No new tasks were found")
+    elif tasks_uploaded == 1:
+        rprint(f"Uploaded {tasks_uploaded} task{'s' if tasks_uploaded  > 1 else ''}")
 
 
+def get_subject_reclaim_tasks(subject, tasks):
+    return [task for task in tasks if task.name.startswith(subject)]
+
+
+@app.command("list")
+def list_reclaim_tasks(subject: Annotated[Optional[str], typer.Argument()] = None):
+    """
+    List all current tasks
+    """
+    reclaim_tasks = ReclaimTask().search()
+    if subject is not None:
+        reclaim_tasks = get_subject_reclaim_tasks(subject, reclaim_tasks)
+    current_date = datetime.now().replace(tzinfo=timezone("UTC"))
+    table = Table("Index", "Task", "Days left", title="Task list")
+    for id, task in enumerate(reclaim_tasks):
+        if current_date > task.due_date:
+            days_behind = (current_date - task.due_date).days
+            table.add_row(
+                f"({id + 1})",
+                task.name,
+                Text(f"{days_behind} days overdue", style="bold red"),
+            )
+        else:
+            days_left = (task.due_date - current_date).days
+            table.add_row(
+                f"({id + 1})",
+                task.name,
+                Text(f"{days_left} days left", style="bold white"),
+            )
+    console.print(table)
+
+
+@app.command("stats")
+def show_task_stats():
+    """
+    Show task stats
+    """
+    current_date = datetime.now().replace(tzinfo=timezone("UTC"))
+    reclaim_tasks = ReclaimTask().search()
+    tasks_fine = [task for task in reclaim_tasks if task.due_date >= current_date]
+    tasks_overdue = [task for task in reclaim_tasks if task.due_date < current_date]
+    theo_tasks_fine = get_subject_reclaim_tasks("Theo", tasks_fine)
+    theo_tasks_overdue = get_subject_reclaim_tasks("Theo", tasks_overdue)
+    linalg_tasks_fine = get_subject_reclaim_tasks("Linalg", tasks_fine)
+    linalg_tasks_overdue = get_subject_reclaim_tasks("Linalg", tasks_overdue)
+    fpv_tasks_fine = get_subject_reclaim_tasks("FPV", tasks_fine)
+    fpv_tasks_overdue = get_subject_reclaim_tasks("FPV", tasks_overdue)
+    dwt_tasks_fine = get_subject_reclaim_tasks("DWT", tasks_fine)
+    dwt_tasks_overdue = get_subject_reclaim_tasks("DWT", tasks_overdue)
+
+    table = Table("Status", "Theo", "LinAlg", "DWT", "FPV", title="Task stats")
+    table.add_row(
+        "Fine",
+        f"{len(theo_tasks_fine)}",
+        f"{len(linalg_tasks_fine)}",
+        f"{len(dwt_tasks_fine)}",
+        f"{len(fpv_tasks_fine)}",
+    )
+    table.add_row(
+        "Overdue",
+        f"{len(theo_tasks_overdue)}",
+        f"{len(linalg_tasks_overdue)}",
+        f"{len(dwt_tasks_overdue)}",
+        f"{len(fpv_tasks_overdue)}",
+    )
+    table.add_row(
+        "Overall",
+        f"{len(theo_tasks_overdue) + len(theo_tasks_fine)}",
+        f"{len(linalg_tasks_overdue) + len(linalg_tasks_fine)}",
+        f"{len(dwt_tasks_overdue) + len(dwt_tasks_fine)}",
+        f"{len(fpv_tasks_overdue) + len(fpv_tasks_fine)}",
+    )
+    console.print(table)
+
+
+@app.command("time")
 def print_time_needed():
+    """
+    Print sum of time needed for all reclaim tasks
+    """
     tasks = ReclaimTask.search()
     time_needed = 0
     for task in tasks:
@@ -141,21 +256,46 @@ def print_time_needed():
     print(f"Time needed to complete {len(tasks)} Tasks: {time_needed} hrs")
     print(f"Average time needed to complete a Task: {time_needed/len(tasks):.2f} hrs")
 
+    days_till_complete = time_needed / 6
+    possible_date_complete = date.today() + timedelta(days=days_till_complete)
+    print(
+        f"You will need {days_till_complete:.2f} days to get even again ({possible_date_complete.strftime('%d.%m.%Y')})"
+    )
 
-def main():
-    parser = argparse.ArgumentParser(description="Sync Things 3 tasks to Reclaim")
-    parser.add_argument("action", help="list, sync")
-    args = parser.parse_args()
-    match args.action:
-        case "list":
-            list_reclaim_tasks()
-        case "sync":
-            sync_things_to_reclaim()
-        case "time":
-            print_time_needed()
-        case _:
-            print("Invalid action")
+
+@app.command("finished")
+def remove_finished_tasks_from_things():
+    """
+    Complete finished reclaim tasks in things
+    """
+    reclaim_things_uuids = [
+        task.description.split(":")[1].strip() for task in ReclaimTask.search()
+    ]
+    finished_someting = False
+    for task in get_all_things_tasks():
+        if task["uuid"] not in reclaim_things_uuids:
+            finished_someting = True
+            print(f"Found completed task: {full_name(things_task=task)}")
+            things.complete(task["uuid"])
+
+    if not finished_someting:
+        print("Reclaim and Things are synced")
+
+
+@app.command("sync")
+def sync_things_and_reclaim(verbose: bool = False):
+    """
+    Sync tasks between things and reclaim
+    First updated all finished tasks in reclaim to completed in things
+    Then upload all new tasks from things to reclaim
+    """
+    rprint("[bold white]Pulling from Reclaim[/bold white]")
+    remove_finished_tasks_from_things()
+    rprint("---------------------------------------------")
+    rprint("[bold white]Pushing to Reclaim[/bold white]")
+    upload_things_to_reclaim(verbose=verbose)
+    rprint("---------------------------------------------")
 
 
 if __name__ == "__main__":
-    main()
+    app()
