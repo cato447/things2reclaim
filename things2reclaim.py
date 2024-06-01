@@ -1,18 +1,19 @@
 #!/opt/homebrew/Caskroom/miniconda/base/envs/things-automation/bin/python3
 
 import re
-from datetime import datetime, timedelta, date
-from pytz import timezone
+from datetime import date, datetime, timedelta
+from time import sleep
 from typing import Dict, List, Optional
 
 import things
 import typer
-from typing_extensions import Annotated
+from pytz import timezone
 from reclaim_sdk.models.task import ReclaimTask
+from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
-from rich import print as rprint
+from typing_extensions import Annotated
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 console = Console()
@@ -143,6 +144,11 @@ def things_reclaim_is_equal(things_task, reclaim_task) -> bool:
     return full_name(things_task=things_task) == reclaim_task.name
 
 
+def get_course_names():
+    projects = extract_uni_projects()
+    return [course["title"] for course in projects]
+
+
 @app.command("upload")
 def upload_things_to_reclaim(verbose: bool = False):
     """
@@ -209,37 +215,22 @@ def show_task_stats():
     reclaim_tasks = ReclaimTask().search()
     tasks_fine = [task for task in reclaim_tasks if task.due_date >= current_date]
     tasks_overdue = [task for task in reclaim_tasks if task.due_date < current_date]
-    theo_tasks_fine = get_subject_reclaim_tasks("Theo", tasks_fine)
-    theo_tasks_overdue = get_subject_reclaim_tasks("Theo", tasks_overdue)
-    linalg_tasks_fine = get_subject_reclaim_tasks("Linalg", tasks_fine)
-    linalg_tasks_overdue = get_subject_reclaim_tasks("Linalg", tasks_overdue)
-    fpv_tasks_fine = get_subject_reclaim_tasks("FPV", tasks_fine)
-    fpv_tasks_overdue = get_subject_reclaim_tasks("FPV", tasks_overdue)
-    dwt_tasks_fine = get_subject_reclaim_tasks("DWT", tasks_fine)
-    dwt_tasks_overdue = get_subject_reclaim_tasks("DWT", tasks_overdue)
 
-    table = Table("Status", "Theo", "LinAlg", "DWT", "FPV", title="Task stats")
-    table.add_row(
-        "Fine",
-        f"{len(theo_tasks_fine)}",
-        f"{len(linalg_tasks_fine)}",
-        f"{len(dwt_tasks_fine)}",
-        f"{len(fpv_tasks_fine)}",
-    )
-    table.add_row(
-        "Overdue",
-        f"{len(theo_tasks_overdue)}",
-        f"{len(linalg_tasks_overdue)}",
-        f"{len(dwt_tasks_overdue)}",
-        f"{len(fpv_tasks_overdue)}",
-    )
-    table.add_row(
-        "Overall",
-        f"{len(theo_tasks_overdue) + len(theo_tasks_fine)}",
-        f"{len(linalg_tasks_overdue) + len(linalg_tasks_fine)}",
-        f"{len(dwt_tasks_overdue) + len(dwt_tasks_fine)}",
-        f"{len(fpv_tasks_overdue) + len(fpv_tasks_fine)}",
-    )
+    fine_per_course = ["Fine"]
+    overdue_per_course = ["Overdue"]
+    course_names = get_course_names()
+    for course_name in course_names:
+        fine_per_course.append(
+            str(len(get_subject_reclaim_tasks(course_name, tasks_fine)))
+        )
+        overdue_per_course.append(
+            str(len(get_subject_reclaim_tasks(course_name, tasks_overdue)))
+        )
+
+    table = Table(*(["Status"] + course_names))
+    table.add_row(*fine_per_course)
+    table.add_row(*overdue_per_course)
+
     console.print(table)
 
 
@@ -249,17 +240,21 @@ def print_time_needed():
     Print sum of time needed for all reclaim tasks
     """
     tasks = ReclaimTask.search()
+    tasks.sort(key=lambda x: x.scheduled_start_date)
+
     time_needed = 0
+
     for task in tasks:
         time_needed += task.duration
 
     print(f"Time needed to complete {len(tasks)} Tasks: {time_needed} hrs")
     print(f"Average time needed to complete a Task: {time_needed/len(tasks):.2f} hrs")
 
-    days_till_complete = time_needed / 6
-    possible_date_complete = date.today() + timedelta(days=days_till_complete)
+    last_task_date = tasks[-1].scheduled_start_date
+    today = datetime.now().replace(tzinfo=timezone("UTC"))
+
     print(
-        f"You will need {days_till_complete:.2f} days to get even again ({possible_date_complete.strftime('%d.%m.%Y')})"
+        f"Last task is scheduled for {last_task_date.strftime('%d.%m.%Y')} ({last_task_date - today} till completion)"
     )
 
 
@@ -292,6 +287,7 @@ def sync_things_and_reclaim(verbose: bool = False):
     rprint("[bold white]Pulling from Reclaim[/bold white]")
     remove_finished_tasks_from_things()
     rprint("---------------------------------------------")
+    sleep(2)
     rprint("[bold white]Pushing to Reclaim[/bold white]")
     upload_things_to_reclaim(verbose=verbose)
     rprint("---------------------------------------------")
