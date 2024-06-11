@@ -160,3 +160,6 @@ cython_debug/
 #.idea/
 
 .reclaim.toml
+things2reclaim/config/.toggl.toml
+things2reclaim/config/.things2reclaim.toml
+things2reclaim/data/tasks.db

@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "task-automation"
+version = "0.1.0"
+description = ""
+authors = ["Simon Bußmann <simon.bussmann@tum.de>"]
+readme = "README.md"
+packages = [{include = "things2reclaim"}]
+include = [{path = "things2reclaim/data", format=["sdist", "wheel"]},{path = "things2reclaim/configs", format=["sdist", "wheel"]}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+pytz = "^2024.1"
+things-py = {git = "https://github.com/thingsapi/things.py"}
+reclaim-sdk = {git = "https://github.com/cato447/reclaim-sdk"}
+rich = "^13.7.1"
+typer = {extras = ["all"], version = "^0.12.3"}
+
+[tool.poetry.scripts]
+task-automation = 'things2reclaim.things2reclaim:main'
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
