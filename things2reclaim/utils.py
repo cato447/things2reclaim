@@ -1,7 +1,11 @@
 from datetime import datetime
 import re
-from typing import Union, Dict
+from typing import Union, Dict, Any, List
+import difflib
+
+from rich import print as rprint
 import things_handler
+from better_rich_prompts.prompt import ListPrompt
 
 regex = (
     r"((\d+\.?\d*) (hours|hrs|hour|hr|h))? ?((\d+\.?\d*) (mins|min|minutes|minute|m))?"
@@ -53,6 +57,28 @@ def map_tag_values(
                     )
             case _:
                 print(f"Tag {tag} not recognized")
+
+
+def get_closest_match(name: str, candidates: Dict[str, Any]) -> Any | None:
+    possible_candidates: List[str] = difflib.get_close_matches(name, candidates.keys())
+    if not possible_candidates:
+        return None
+    if len(possible_candidates) == 1:
+        return candidates[possible_candidates[0]]
+    else:
+        return candidates[ListPrompt.ask("Select a candidate", possible_candidates)]
+
+
+def pinfo(msg: str):
+    rprint(f"[bold white]{msg}[/bold white]")
+
+
+def pwarning(msg: str):
+    rprint(f"[bold yellow]Warning: {msg}[/bold yellow]")
+
+
+def perror(msg: str):
+    rprint(f"[bold red]Error: {msg}[/bold red]")
 
 
 def generate_things_id_tag(things_task) -> str:

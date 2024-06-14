@@ -1,17 +1,18 @@
 #!/opt/homebrew/Caskroom/miniconda/base/envs/things-automation/bin/python3
 
 from datetime import datetime
-from typing import Optional
+from dateutil import tz
+from typing import Optional, List, Dict
 import tomllib
 from pathlib import Path
 
 import sqlite3
 import typer
-from pytz import timezone
 from rich import print as rprint
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
+from rich.prompt import Confirm
 from typing_extensions import Annotated
 
 import utils
@@ -28,12 +29,15 @@ with open(CONFIG_PATH, "rb") as f:
 
 DATABASE_PATH = _config["database"]["path"]
 
-app = typer.Typer(add_completion=False, no_args_is_help=True)
+app = typer.Typer(
+    add_completion=False, no_args_is_help=True, pretty_exceptions_enable=False
+)
 console = Console()
 
 
 def complete_task_name(incomplete: str):
     for name in [task.name for task in reclaim_handler.get_reclaim_tasks()]:
+        print(name)
         if name.startswith(incomplete):
             yield name
 
@@ -44,6 +48,7 @@ def things_to_reclaim(things_task):
     if estimated_time is None:
         raise ValueError("EstimatedTime tag is required")
     estimated_time = utils.calculate_time_on_unit(estimated_time)
+    del tags["EstimatedTime"]
 
     params = {
         "name": things_handler.full_name(things_task),
@@ -59,13 +64,13 @@ def things_to_reclaim(things_task):
             f"{things_task['start_date']} 08:00", "%Y-%m-%d %H:%M"
         )
     if things_task.get("deadline"):
-        params["due_date"] = (
-            datetime.strptime(f"{things_task['deadline']} 22:00", "%Y-%m-%d %H:%M"),
+        params["due_date"] = datetime.strptime(
+            f"{things_task['deadline']} 22:00", "%Y-%m-%d %H:%M"
         )
 
     utils.map_tag_values(things_task, tags, params)
 
-    reclaim_handler.create_reaclaim_task(**params)
+    reclaim_handler.create_reaclaim_task_from_dict(params)
 
 
 @app.command("init")
@@ -131,7 +136,7 @@ def list_reclaim_tasks(subject: Annotated[Optional[str], typer.Argument()] = Non
     reclaim_tasks = reclaim_handler.get_reclaim_tasks()
     if subject is not None:
         reclaim_tasks = reclaim_handler.filter_for_subject(subject, reclaim_tasks)
-    current_date = datetime.now().replace(tzinfo=timezone("UTC"))
+    current_date = datetime.now(tz.tzutc())
     table = Table("Index", "Task", "Days left", title="Task list")
     for id, task in enumerate(reclaim_tasks):
         if current_date > task.due_date:
@@ -153,11 +158,73 @@ def list_reclaim_tasks(subject: Annotated[Optional[str], typer.Argument()] = Non
 
 @app.command("start")
 def start_task(
-    task_name: Annotated[
-        str, typer.Option(help="Task to start", autocompletion=complete_task_name)
-    ],
+    task_name_parts: Annotated[List[str], typer.Argument(help="Task to start")],
 ):
-    print(f"Starting task: {task_name}")
+    task_name = (" ").join(task_name_parts)
+    tasks: Dict[str, reclaim_handler.ReclaimTask] = {
+        task.name: task for task in reclaim_handler.get_reclaim_tasks()
+    }
+    if task_name not in tasks.keys():
+        task = utils.get_closest_match(task_name, tasks)
+        if task is None:
+            utils.perror(f"No task with name {task_name} found")
+            return
+    else:
+        task = tasks[task_name]
+
+    current_task = toggl_handler.get_current_time_entry()
+    if current_task is not None:
+        utils.perror("Toggl Track is already running")
+        return
+
+    toggl_handler.start_task(task.name, reclaim_handler.get_project(task))
+    reclaim_handler.start_task(task)
+    print(f"Started task {task.name}")
+
+
+@app.command("stop")
+def stop_task():
+    current_task = toggl_handler.get_current_time_entry()
+    if current_task is None:
+        utils.perror("No task is currently tracked in toggl")
+        return
+
+    stopped_task_name = current_task.description
+
+    if stopped_task_name is None:
+        utils.perror("Current toggl task has no name")
+        return
+
+    reclaim_dict = {task.name: task for task in reclaim_handler.get_reclaim_tasks()}
+
+    if stopped_task_name in reclaim_dict.keys():
+        stopped_task = reclaim_dict[stopped_task_name]
+    else:
+        stopped_task = utils.get_closest_match(stopped_task_name, reclaim_dict)
+
+        if stopped_task is None:
+            utils.perror(f"{stopped_task} not found in reclaim")
+            return
+    stop_time = datetime.now(tz.tzutc())
+    if callable(current_task.start):
+        current_task.start = current_task.start()
+
+    toggl_handler.stop_current_task()
+
+    if stopped_task.is_scheduled:
+        reclaim_handler.log_work_for_task(stopped_task, current_task.start, stop_time)
+
+        is_task_finished = Confirm.ask("Is task finished?", default=False)
+        if is_task_finished:
+            reclaim_handler.finish_task(stopped_task)
+            rprint(f"Finished {stopped_task.name}")
+    else:
+        utils.pwarning("Work could not be logged in reclaim[")
+    time_format = "%H:%M"
+    local_zone = tz.gettz()
+    rprint(
+        f"Logged work from {current_task.start.astimezone(local_zone).strftime(time_format)} to {stop_time.astimezone(local_zone).strftime(time_format)} for {stopped_task.name}"
+    )
 
 
 @app.command("stats")
@@ -165,7 +232,7 @@ def show_task_stats():
     """
     Show task stats
     """
-    current_date = datetime.now().replace(tzinfo=timezone("UTC"))
+    current_date = datetime.now(tz.tzutc())
     reclaim_tasks = reclaim_handler.get_reclaim_tasks()
     tasks_fine = [task for task in reclaim_tasks if task.due_date >= current_date]
     tasks_overdue = [task for task in reclaim_tasks if task.due_date < current_date]
@@ -208,7 +275,7 @@ def print_time_needed():
         print("To many to-dos on list. Not all are scheduled")
         return
     last_task_date = tasks[-1].scheduled_start_date
-    today = datetime.now().replace(tzinfo=timezone("UTC"))
+    today = datetime.now(tz.tzutc())
 
     print(
         f"Last task is scheduled for {last_task_date.strftime('%d.%m.%Y')} ({last_task_date - today} till completion)"
@@ -243,10 +310,10 @@ def sync_things_and_reclaim(verbose: bool = False):
     First updated all finished tasks in reclaim to completed in things
     Then upload all new tasks from things to reclaim
     """
-    rprint("[bold white]Pulling from Reclaim[/bold white]")
+    utils.pinfo("Pulling from Reclaim")
     remove_finished_tasks_from_things()
     rprint("---------------------------------------------")
-    rprint("[bold white]Pushing to Reclaim[/bold white]")
+    utils.pinfo("Pushing to Reclaim")
     upload_things_to_reclaim(verbose=verbose)
     rprint("---------------------------------------------")
 
