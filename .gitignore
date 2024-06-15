@@ -163,3 +163,4 @@ cython_debug/
 things2reclaim/config/.toggl.toml
 things2reclaim/config/.things2reclaim.toml
 things2reclaim/data/tasks.db
+api/ReclaimAI/collection.bru

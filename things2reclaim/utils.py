@@ -3,14 +3,15 @@ import re
 from typing import Union, Dict, Any, List
 import difflib
 
-from rich import print as rprint
-import things_handler
 from better_rich_prompts.prompt import ListPrompt
+from rich import print as rprint
 
-regex = (
+from things2reclaim import things_handler
+
+TIME_PATTERN = (
     r"((\d+\.?\d*) (hours|hrs|hour|hr|h))? ?((\d+\.?\d*) (mins|min|minutes|minute|m))?"
 )
-pattern = re.compile(regex)
+pattern = re.compile(TIME_PATTERN)
 
 
 def calculate_time_on_unit(tag_value: str) -> float:
@@ -65,8 +66,8 @@ def get_closest_match(name: str, candidates: Dict[str, Any]) -> Any | None:
         return None
     if len(possible_candidates) == 1:
         return candidates[possible_candidates[0]]
-    else:
-        return candidates[ListPrompt.ask("Select a candidate", possible_candidates)]
+
+    return candidates[ListPrompt.ask("Select a candidate", possible_candidates)]
 
 
 def pinfo(msg: str):

@@ -1,0 +1,18 @@
+meta {
+  name: Get Events
+  type: http
+  seq: 3
+}
+
+get {
+  url: https://api.app.reclaim.ai/api/events?start=2024-06-13&end=2024-06-14&sourceDetails=true&allConnected=true
+  body: none
+  auth: inherit
+}
+
+params:query {
+  start: 2024-06-13
+  end: 2024-06-14
+  sourceDetails: true
+  allConnected: true
+}

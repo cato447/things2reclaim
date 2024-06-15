@@ -4,7 +4,7 @@ import tomllib
 
 import things
 
-from database_handler import UploadedTasksDB
+from things2reclaim.database_handler import UploadedTasksDB
 
 _config = {}
 CONFIG_PATH = Path("config/.things2reclaim.toml")
@@ -49,7 +49,7 @@ def get_all_uploaded_things_tasks() -> List:
 
 
 def get_task_tags(things_task: Dict) -> Dict[str, str]:
-    return {k: v for (k, v) in [tag.split(": ") for tag in things_task["tags"]]}
+    return dict([tag.split(": ") for tag in things_task["tags"]])
 
 
 def full_name(things_task) -> str:

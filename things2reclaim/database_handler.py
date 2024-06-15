@@ -1,7 +1,7 @@
 import sqlite3
 
 
-class UploadedTasksDB(object):
+class UploadedTasksDB:
     def __init__(self, filename):
         self.conn: sqlite3.Connection = sqlite3.connect(filename)
         self.__create_tables()
@@ -9,7 +9,7 @@ class UploadedTasksDB(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, *exc):
         self.conn.close()
 
     def __create_tables(self):

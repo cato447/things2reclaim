@@ -32,6 +32,10 @@ def get_project(task: ReclaimTask):
     return task.name.split(" ")[0]
 
 
+def get_events(since_days: int = 1):
+    return ReclaimTaskEvent.search()
+
+
 def start_task(task: ReclaimTask):
     task.prioritize()
 
@@ -61,7 +65,7 @@ def log_work_for_task(task: ReclaimTask, start: datetime, end: datetime):
 
     last_event.start = start.astimezone(utc)
     last_event.end = end.astimezone(utc)
-    last_event._update()
+    last_event.save()
 
 
 def finish_task(task: ReclaimTask):

@@ -1,25 +1,26 @@
 #!/opt/homebrew/Caskroom/miniconda/base/envs/things-automation/bin/python3
 
-from datetime import datetime
-from dateutil import tz
-from typing import Optional, List, Dict
-import tomllib
-from pathlib import Path
-
 import sqlite3
-import typer
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional
+import tomllib
+
+from dateutil import tz
 from rich import print as rprint
 from rich.console import Console
+from rich.prompt import Confirm
 from rich.table import Table
 from rich.text import Text
-from rich.prompt import Confirm
 from typing_extensions import Annotated
+import typer
 
-import utils
-import things_handler
-import reclaim_handler
-from database_handler import UploadedTasksDB
-import toggl_handler
+from things2reclaim import reclaim_handler
+from things2reclaim import things_handler
+from things2reclaim import toggl_handler
+from things2reclaim import utils
+from things2reclaim.database_handler import UploadedTasksDB
+
 
 CONFIG_PATH = Path("config/.things2reclaim.toml")
 
@@ -138,18 +139,18 @@ def list_reclaim_tasks(subject: Annotated[Optional[str], typer.Argument()] = Non
         reclaim_tasks = reclaim_handler.filter_for_subject(subject, reclaim_tasks)
     current_date = datetime.now(tz.tzutc())
     table = Table("Index", "Task", "Days left", title="Task list")
-    for id, task in enumerate(reclaim_tasks):
+    for index, task in enumerate(reclaim_tasks):
         if current_date > task.due_date:
             days_behind = (current_date - task.due_date).days
             table.add_row(
-                f"({id + 1})",
+                f"({index + 1})",
                 task.name,
                 Text(f"{days_behind} days overdue", style="bold red"),
             )
         else:
             days_left = (task.due_date - current_date).days
             table.add_row(
-                f"({id + 1})",
+                f"({index + 1})",
                 task.name,
                 Text(f"{days_left} days left", style="bold white"),
             )
@@ -223,7 +224,8 @@ def stop_task():
     time_format = "%H:%M"
     local_zone = tz.gettz()
     rprint(
-        f"Logged work from {current_task.start.astimezone(local_zone).strftime(time_format)} to {stop_time.astimezone(local_zone).strftime(time_format)} for {stopped_task.name}"
+        f"""Logged work from {current_task.start.astimezone(local_zone).strftime(time_format)}
+        to {stop_time.astimezone(local_zone).strftime(time_format)} for {stopped_task.name}"""
     )
 
 
@@ -278,7 +280,8 @@ def print_time_needed():
     today = datetime.now(tz.tzutc())
 
     print(
-        f"Last task is scheduled for {last_task_date.strftime('%d.%m.%Y')} ({last_task_date - today} till completion)"
+        f"""Last task is scheduled for {last_task_date.strftime('%d.%m.%Y')}
+        ({last_task_date - today} till completion)"""
     )
 
 

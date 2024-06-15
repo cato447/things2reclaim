@@ -1,13 +1,12 @@
-from toggl_python.entities import TimeEntry
-import toggl_python
-import tomllib
-from pathlib import Path
-from dateutil import tz
 import difflib
-
 from datetime import datetime, timedelta
-from better_rich_prompts.prompt import ListPrompt
+from pathlib import Path
+import tomllib
 
+import toggl_python
+from better_rich_prompts.prompt import ListPrompt
+from dateutil import tz
+from toggl_python.entities import TimeEntry
 
 _config = {}
 
@@ -29,8 +28,8 @@ time_entry_editor = toggl_python.WorkspaceTimeEntries(
 )
 
 
-def get_time_entry(id: int):
-    return toggl_python.TimeEntries(auth=auth).retrieve(id)
+def get_time_entry(time_entry_id: int):
+    return toggl_python.TimeEntries(auth=auth).retrieve(time_entry_id)
 
 
 def get_time_entries(since_days: int = 30):
@@ -65,14 +64,13 @@ def get_approriate_tag(description: str) -> str | None:
 
     if not possible_tags:
         print("Found no matching tags")
-        return
+        return None
 
     possible_tags = list(possible_tags)
 
     if len(possible_tags) == 1:
         return possible_tags[0]
-    else:
-        return ListPrompt.ask("Select the best fitting tag", possible_tags)
+    return ListPrompt.ask("Select the best fitting tag", possible_tags)
 
 
 def create_task_time_entry(
@@ -95,9 +93,8 @@ def create_task_time_entry(
     if start is not None:
         if start.tzinfo is None:
             raise ValueError("start has to be timezone aware")
-        else:
-            start = start.astimezone(tz.tzutc())
-            time_entry.start = start
+        start = start.astimezone(tz.tzutc())
+        time_entry.start = start
 
     tag = get_approriate_tag(description)
     if tag:
