@@ -179,7 +179,6 @@ def start_task(
         return
 
     toggl_handler.start_task(task.name, reclaim_handler.get_project(task))
-    reclaim_handler.start_task(task)
     print(f"Started task {task.name}")
 
 

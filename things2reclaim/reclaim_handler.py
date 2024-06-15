@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import List, Dict
 
@@ -32,12 +32,14 @@ def get_project(task: ReclaimTask):
     return task.name.split(" ")[0]
 
 
-def get_events(since_days: int = 1):
-    return ReclaimTaskEvent.search()
+def get_events_since(since_days: int = 1):
+    date_now = datetime.now(tz.tzutc()).date()
+    date_since = date_now - timedelta(days=since_days)
+    return ReclaimTaskEvent.search(date_since, date_now)
 
 
-def start_task(task: ReclaimTask):
-    task.prioritize()
+def get_events_date_range(from_date: date, to_date: date):
+    return ReclaimTaskEvent.search(from_date, to_date)
 
 
 def create_reaclaim_task_from_dict(params: Dict):

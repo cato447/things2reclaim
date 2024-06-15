@@ -1,5 +1,5 @@
 import difflib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 import tomllib
 
@@ -32,7 +32,13 @@ def get_time_entry(time_entry_id: int):
     return toggl_python.TimeEntries(auth=auth).retrieve(time_entry_id)
 
 
-def get_time_entries(since_days: int = 30):
+def get_time_entries_date_range(from_date: date, to_date: date):
+    return toggl_python.TimeEntries(auth=auth).list(
+        start_date=from_date.isoformat(), end_date=to_date.isoformat()
+    )
+
+
+def get_time_entries_since(since_days: int = 30):
     if since_days > 90:
         raise ValueError("since_days can't be more than 90 days")
     time_stamp = int((datetime.now() - timedelta(days=since_days)).timestamp())
