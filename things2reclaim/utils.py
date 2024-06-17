@@ -6,7 +6,7 @@ import difflib
 from better_rich_prompts.prompt import ListPrompt
 from rich import print as rprint
 
-from things2reclaim import things_handler
+import things_handler
 
 TIME_PATTERN = (
     r"((\d+\.?\d*) (hours|hrs|hour|hr|h))? ?((\d+\.?\d*) (mins|min|minutes|minute|m))?"

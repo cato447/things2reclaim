@@ -4,7 +4,7 @@ import tomllib
 
 import things
 
-from things2reclaim.database_handler import UploadedTasksDB
+from database_handler import UploadedTasksDB
 
 _config = {}
 CONFIG_PATH = Path("config/.things2reclaim.toml")

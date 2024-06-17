@@ -15,11 +15,12 @@ from rich.text import Text
 from typing_extensions import Annotated
 import typer
 
-from things2reclaim import reclaim_handler
-from things2reclaim import things_handler
-from things2reclaim import toggl_handler
-from things2reclaim import utils
-from things2reclaim.database_handler import UploadedTasksDB
+
+import reclaim_handler
+import things_handler
+import toggl_handler
+import utils
+from database_handler import UploadedTasksDB
 
 
 CONFIG_PATH = Path("config/.things2reclaim.toml")
