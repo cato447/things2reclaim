@@ -6,6 +6,13 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import tomllib
 
+import reclaim_handler
+import things_handler
+import toggl_handler
+import utils
+from database_handler import UploadedTasksDB
+
+
 from dateutil import tz
 from rich import print as rprint
 from rich.console import Console
@@ -15,12 +22,6 @@ from rich.text import Text
 from typing_extensions import Annotated
 import typer
 
-
-import reclaim_handler
-import things_handler
-import toggl_handler
-import utils
-from database_handler import UploadedTasksDB
 
 
 CONFIG_PATH = Path("config/.things2reclaim.toml")
@@ -90,7 +91,8 @@ def initialize_uploaded_database(verbose: bool = False):
             except sqlite3.IntegrityError as e:
                 if verbose:
                     print(
-                        f"Task with ID {task_id} already in database | Exception: {e}"
+                        f"Task with ID {
+                            task_id} already in database | Exception: {e}"
                     )
                 else:
                     continue
@@ -99,7 +101,8 @@ def initialize_uploaded_database(verbose: bool = False):
         print("uploaded_tasks table is already initialized")
     else:
         print(
-            f"Added {added_tasks} task{'s' if added_tasks > 1 else ''} to uploaded_tasks table"
+            f"Added {added_tasks} task{'s' if added_tasks >
+                                       1 else ''} to uploaded_tasks table"
         )
 
 
@@ -109,13 +112,15 @@ def upload_things_to_reclaim(verbose: bool = False):
     Upload things tasks to reclaim
     """
     projects = things_handler.extract_uni_projects()
-    reclaim_task_names = [task.name for task in reclaim_handler.get_reclaim_tasks()]
+    reclaim_task_names = [
+        task.name for task in reclaim_handler.get_reclaim_tasks()]
     tasks_uploaded = 0
     with UploadedTasksDB(DATABASE_PATH) as db:
         for project in projects:
             things_tasks = things_handler.get_tasks_for_project(project)
             for things_task in things_tasks:
-                full_task_name = things_handler.full_name(things_task=things_task)
+                full_task_name = things_handler.full_name(
+                    things_task=things_task)
                 if full_task_name not in reclaim_task_names:
                     tasks_uploaded += 1
                     print(f"Creating task {full_task_name} in Reclaim")
@@ -123,11 +128,13 @@ def upload_things_to_reclaim(verbose: bool = False):
                     db.add_uploaded_task(things_task["uuid"])
                 else:
                     if verbose:
-                        print(f"Task {things_task['title']} already exists in Reclaim")
+                        print(
+                            f"Task {things_task['title']} already exists in Reclaim")
     if tasks_uploaded == 0:
         rprint("No new tasks were found")
     elif tasks_uploaded == 1:
-        rprint(f"Uploaded {tasks_uploaded} task{'s' if tasks_uploaded  > 1 else ''}")
+        rprint(f"Uploaded {tasks_uploaded} task{
+               's' if tasks_uploaded > 1 else ''}")
 
 
 @app.command("list")
@@ -137,7 +144,8 @@ def list_reclaim_tasks(subject: Annotated[Optional[str], typer.Argument()] = Non
     """
     reclaim_tasks = reclaim_handler.get_reclaim_tasks()
     if subject is not None:
-        reclaim_tasks = reclaim_handler.filter_for_subject(subject, reclaim_tasks)
+        reclaim_tasks = reclaim_handler.filter_for_subject(
+            subject, reclaim_tasks)
     current_date = datetime.now(tz.tzutc())
     table = Table("Index", "Task", "Days left", title="Task list")
     for index, task in enumerate(reclaim_tasks):
@@ -196,7 +204,8 @@ def stop_task():
         utils.perror("Current toggl task has no name")
         return
 
-    reclaim_dict = {task.name: task for task in reclaim_handler.get_reclaim_tasks()}
+    reclaim_dict = {
+        task.name: task for task in reclaim_handler.get_reclaim_tasks()}
 
     if stopped_task_name in reclaim_dict.keys():
         stopped_task = reclaim_dict[stopped_task_name]
@@ -213,7 +222,8 @@ def stop_task():
     toggl_handler.stop_current_task()
 
     if stopped_task.is_scheduled:
-        reclaim_handler.log_work_for_task(stopped_task, current_task.start, stop_time)
+        reclaim_handler.log_work_for_task(
+            stopped_task, current_task.start, stop_time)
 
         is_task_finished = Confirm.ask("Is task finished?", default=False)
         if is_task_finished:
@@ -236,8 +246,10 @@ def show_task_stats():
     """
     current_date = datetime.now(tz.tzutc())
     reclaim_tasks = reclaim_handler.get_reclaim_tasks()
-    tasks_fine = [task for task in reclaim_tasks if task.due_date >= current_date]
-    tasks_overdue = [task for task in reclaim_tasks if task.due_date < current_date]
+    tasks_fine = [
+        task for task in reclaim_tasks if task.due_date >= current_date]
+    tasks_overdue = [
+        task for task in reclaim_tasks if task.due_date < current_date]
 
     fine_per_course = ["Fine"]
     overdue_per_course = ["Overdue"]
@@ -269,7 +281,8 @@ def print_time_needed():
         time_needed += task.duration
 
     print(f"Time needed to complete {len(tasks)} Tasks: {time_needed} hrs")
-    print(f"Average time needed to complete a Task: {time_needed/len(tasks):.2f} hrs")
+    print(f"Average time needed to complete a Task: {
+          time_needed/len(tasks):.2f} hrs")
 
     try:
         tasks.sort(key=lambda x: x.scheduled_start_date)
@@ -297,7 +310,8 @@ def remove_finished_tasks_from_things():
             if task["uuid"] not in reclaim_things_uuids:
                 finished_someting = True
                 print(
-                    f"Found completed task: {things_handler.full_name(things_task=task)}"
+                    f"Found completed task: {
+                        things_handler.full_name(things_task=task)}"
                 )
                 things_handler.complete(task["uuid"])
                 db.remove_uploaded_task(task["uuid"])
