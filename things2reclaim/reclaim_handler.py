@@ -63,6 +63,9 @@ def log_work_for_task(task: ReclaimTask, start: datetime, end: datetime):
     if not task.is_scheduled:
         raise RuntimeError("Task is not scheduled")
 
+    if not task.events:
+        raise RuntimeError("Event list is empty")
+
     last_event: ReclaimTaskEvent = task.events[-1]
 
     last_event.start = start.astimezone(utc)

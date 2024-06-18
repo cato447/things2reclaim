@@ -23,7 +23,6 @@ from typing_extensions import Annotated
 import typer
 
 
-
 CONFIG_PATH = Path("config/.things2reclaim.toml")
 
 _config = {}
@@ -33,7 +32,7 @@ with open(CONFIG_PATH, "rb") as f:
 DATABASE_PATH = _config["database"]["path"]
 
 app = typer.Typer(
-    add_completion=False, no_args_is_help=True, pretty_exceptions_enable=False
+    add_completion=False, no_args_is_help=True
 )
 console = Console()
 
@@ -129,7 +128,8 @@ def upload_things_to_reclaim(verbose: bool = False):
                 else:
                     if verbose:
                         print(
-                            f"Task {things_task['title']} already exists in Reclaim")
+                            f"Task {things_task['title']} \
+                                    already exists in Reclaim")
     if tasks_uploaded == 0:
         rprint("No new tasks were found")
     elif tasks_uploaded == 1:
@@ -138,7 +138,8 @@ def upload_things_to_reclaim(verbose: bool = False):
 
 
 @app.command("list")
-def list_reclaim_tasks(subject: Annotated[Optional[str], typer.Argument()] = None):
+def list_reclaim_tasks(subject: Annotated[Optional[str],
+                                          typer.Argument()] = None):
     """
     List all current tasks
     """
@@ -168,7 +169,7 @@ def list_reclaim_tasks(subject: Annotated[Optional[str], typer.Argument()] = Non
 
 @app.command("start")
 def start_task(
-    task_name_parts: Annotated[List[str], typer.Argument(help="Task to start")],
+    task_name_parts: Annotated[List[str], typer.Argument(help="Task to start")]
 ):
     task_name = (" ").join(task_name_parts)
     tasks: Dict[str, reclaim_handler.ReclaimTask] = {
@@ -234,8 +235,10 @@ def stop_task():
     time_format = "%H:%M"
     local_zone = tz.gettz()
     rprint(
-        f"""Logged work from {current_task.start.astimezone(local_zone).strftime(time_format)}
-        to {stop_time.astimezone(local_zone).strftime(time_format)} for {stopped_task.name}"""
+        f"Logged work from \
+        {current_task.start.astimezone(local_zone).strftime(time_format)} to \
+                {stop_time.astimezone(local_zone).strftime(time_format)} \
+                for {stopped_task.name}"
     )
 
 
@@ -256,10 +259,12 @@ def show_task_stats():
     course_names = things_handler.get_course_names()
     for course_name in course_names:
         fine_per_course.append(
-            str(len(reclaim_handler.filter_for_subject(course_name, tasks_fine)))
+            str(len(reclaim_handler.filter_for_subject
+                    (course_name, tasks_fine)))
         )
         overdue_per_course.append(
-            str(len(reclaim_handler.filter_for_subject(course_name, tasks_overdue)))
+            str(len(reclaim_handler.filter_for_subject
+                    (course_name, tasks_overdue)))
         )
 
     table = Table(*(["Status"] + course_names))
