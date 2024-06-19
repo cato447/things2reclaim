@@ -75,7 +75,7 @@ def is_task_time_entry(name: str):
 
 
 def get_task_events_since(since_days: int = 0) -> List[ReclaimTaskEvent]:
-    date_now = datetime.now(tz.tzutc()).date()
+    date_now = datetime.now(tz.tzlocal()).date()
     date_since = date_now - timedelta(days=since_days)
     date_end = date_now + timedelta(days = 1) # end date is exclusive
     events = ReclaimTaskEvent.search(date_since, date_end)

@@ -1,7 +1,7 @@
 #!/opt/homebrew/Caskroom/miniconda/base/envs/things-automation/bin/python3
 
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 import tomllib
@@ -334,6 +334,9 @@ def sync_toggl_reclaim_tracking():
     since_days = 0
     reclaim_handler.get_reclaim_tasks()
     toggl_time_entries = toggl_handler.get_time_entries_since(since_days = since_days) # end date is inclusive 
+    if toggl_time_entries is None:
+        utils.pwarning("No tasks tracked today in Toggl")
+        return
     reclaim_time_entries = reclaim_handler.get_task_events_since(since_days = since_days) # end date is inclusive 
     reclaim_time_entry_names = [reclaim_handler.get_clean_time_entry_name(time_entry.name) for time_entry in reclaim_time_entries]
     missing_reclaim_entries = [time_entry for time_entry in toggl_time_entries if time_entry.description not in reclaim_time_entry_names]
@@ -363,7 +366,9 @@ def display_current_task():
     if current_task is None:
         utils.perror("No task is currently tracked in toggl")
         return
-    rprint(f"Current task: {current_task.description}\nStarted at: {current_task.start.astimezone(tz.gettz()).strftime("%H:%M")}")
+    rprint((f"Current task: {current_task.description}\nStarted at:",
+           f"{toggl_handler.get_start_time(current_task)
+                .astimezone(tz.gettz()).strftime("%H:%M")}"))
 
 
 @app.command("sync")

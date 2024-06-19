@@ -56,7 +56,7 @@ def get_time_entries_since(since_days: int = 30) -> List[toggl_python.TimeEntry]
     """
     if since_days > 90:
         raise ValueError("since_days can't be more than 90 days")
-    midnight = datetime.combine(datetime.now(), time.min)
+    midnight = datetime.combine(datetime.now(tz.tzlocal()), time.min)
     time_stamp = int((midnight - timedelta(days=since_days)).timestamp())
     return toggl_python.TimeEntries(auth=auth).list(since=time_stamp)
 
