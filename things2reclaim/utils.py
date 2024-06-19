@@ -1,6 +1,6 @@
 from datetime import datetime
 import re
-from typing import Union, Dict, Any, List
+from typing import Union, Dict, TypeVar, List
 import difflib
 
 from better_rich_prompts.prompt import ListPrompt
@@ -13,6 +13,7 @@ TIME_PATTERN = (
 )
 pattern = re.compile(TIME_PATTERN)
 
+T = TypeVar("T") # generic type
 
 def calculate_time_on_unit(tag_value: str) -> float:
     # This is a regex to match time in the format of 1h 30m
@@ -60,8 +61,9 @@ def map_tag_values(
                 print(f"Tag {tag} not recognized")
 
 
-def get_closest_match(name: str, candidates: Dict[str, Any]) -> Any | None:
+def get_closest_match(name: str, candidates: Dict[str, T]) -> T | None:
     possible_candidates: List[str] = difflib.get_close_matches(name, candidates.keys())
+
     if not possible_candidates:
         return None
     if len(possible_candidates) == 1:

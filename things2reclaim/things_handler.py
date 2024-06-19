@@ -20,11 +20,11 @@ def extract_uni_projects():
     return things.projects(area=uni_area["uuid"])
 
 
-def get_task(task_id: int):
+def get_task(task_id: str):
     return things.get(task_id)
 
 
-def complete(task_id: int):
+def complete(task_id: str):
     things.complete(task_id)
 
 
