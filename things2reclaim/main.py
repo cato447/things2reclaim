@@ -1,7 +1,7 @@
 #!/opt/homebrew/Caskroom/miniconda/base/envs/things-automation/bin/python3
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 import tomllib
@@ -244,12 +244,7 @@ def stop_task():
         finish_task(stopped_task)
         rprint(f"Finished {stopped_task.name}")
 
-    time_format = "%H:%M"
-    local_zone = tz.gettz()
-    rprint(
-        (f"Logged work from {current_task.start.astimezone(local_zone).strftime(time_format)} "
-         f"to {stop_time.astimezone(local_zone).strftime(time_format)} for {stopped_task.name}")
-    )
+    utils.plogtime(current_task.start, stop_time, stopped_task.name)
 
 
 @app.command("stats")
@@ -301,7 +296,7 @@ def print_time_needed():
           time_needed/len(tasks):.2f} hrs")
     
     # sort unscheduled tasks to the end of the list
-    tasks.sort(key=lambda x: x.scheduled_start_date if x.scheduled_start_date is not None else float('inf'))
+    tasks.sort(key=lambda x: x.scheduled_start_date if x.scheduled_start_date is not None else datetime.max.replace(tzinfo=tz.tzutc()))
 
     last_task_date = tasks[-1].scheduled_start_date
     if last_task_date is None: # last task on todo list is not scheduled
@@ -340,8 +335,35 @@ def sync_toggl_reclaim_tracking():
     reclaim_handler.get_reclaim_tasks()
     toggl_time_entries = toggl_handler.get_time_entries_since(since_days = since_days) # end date is inclusive 
     reclaim_time_entries = reclaim_handler.get_task_events_since(since_days = since_days) # end date is inclusive 
-    rprint(reclaim_time_entries)
+    reclaim_time_entry_names = [reclaim_handler.get_clean_time_entry_name(time_entry.name) for time_entry in reclaim_time_entries]
+    missing_reclaim_entries = [time_entry for time_entry in toggl_time_entries if time_entry.description not in reclaim_time_entry_names]
 
+    if not missing_reclaim_entries:
+        utils.pinfo("Toggl and Reclaim time entries are synced.")
+    else:
+        for time_entry in missing_reclaim_entries:
+            name = time_entry.description
+            if not name:
+                raise ValueError("Toggl time entry has empty description")
+            reclaim_task = reclaim_handler.get_reclaim_task(name)
+            if not reclaim_task:
+                utils.pwarning(f"Couldn't find {time_entry.description} in Reclaim.")
+                continue
+
+            start = toggl_handler.get_start_time(time_entry)
+            stop = toggl_handler.get_stop_time(time_entry)
+
+            reclaim_handler.log_work_for_task(reclaim_task, start, stop)
+            utils.plogtime(start, stop, reclaim_task.name)
+
+
+@app.command("current")
+def display_current_task():
+    current_task = toggl_handler.get_current_time_entry()
+    if current_task is None:
+        utils.perror("No task is currently tracked in toggl")
+        return
+    rprint(f"Current task: {current_task.description}\nStarted at: {current_task.start.astimezone(tz.gettz()).strftime("%H:%M")}")
 
 
 @app.command("sync")

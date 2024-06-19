@@ -2,6 +2,7 @@ import difflib
 from datetime import datetime, timedelta, date, time
 from pathlib import Path
 import tomllib
+from typing import List
 
 import toggl_python
 from better_rich_prompts.prompt import ListPrompt
@@ -28,8 +29,19 @@ time_entry_editor = toggl_python.WorkspaceTimeEntries(
 )
 
 
-def get_time_entry(time_entry_id: int):
+def get_time_entry(time_entry_id: int) -> toggl_python.TimeEntry:
     return toggl_python.TimeEntries(auth=auth).retrieve(time_entry_id)
+
+
+def get_start_time(time_entry : toggl_python.TimeEntry):
+    return time_entry.start() if callable(time_entry.start) else time_entry.start
+
+
+def get_stop_time(time_entry: toggl_python.TimeEntry):
+    if time_entry.stop is None:
+        return get_start_time(time_entry) + timedelta(seconds=time_entry.duration) 
+    else:
+        return time_entry.stop() if callable(time_entry.stop) else time_entry.stop
 
 
 def get_time_entries_date_range(from_date: date, to_date: date):
@@ -38,7 +50,7 @@ def get_time_entries_date_range(from_date: date, to_date: date):
     )
 
 
-def get_time_entries_since(since_days: int = 30):
+def get_time_entries_since(since_days: int = 30) -> List[toggl_python.TimeEntry]:
     """
     get time entries since days at midnight
     """
@@ -61,7 +73,7 @@ def get_current_time_entry() -> TimeEntry | None:
     return time_entries.current()
 
 
-def get_tags():
+def get_tags() -> List[toggl_python.Tag]:
     return toggl_python.Workspaces(auth=auth).tags(_id=workspace.id)
 
 
@@ -85,7 +97,7 @@ def get_approriate_tag(description: str) -> str | None:
 
 def create_task_time_entry(
     description: str, project: str, start: datetime | None = None, duration: int = -1
-):
+) -> toggl_python.TimeEntry:
     """
     duration is in seconds
     """

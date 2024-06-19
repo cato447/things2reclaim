@@ -28,6 +28,13 @@ things_id_pattern : Pattern[str] = re.compile(THINGS_ID_PATTERN)
 ReclaimClient(token=RECLAIM_TOKEN)
 
 
+def get_reclaim_task(name : str) -> Optional[ReclaimTask]:
+    res = ReclaimTask.search(title = name)
+    if not res:
+        return None
+    else:
+        return res[0]
+
 def get_reclaim_tasks() -> List[ReclaimTask]:
     return ReclaimTask.search()
 
@@ -60,15 +67,19 @@ def get_project(task: ReclaimTask):
 def get_clean_time_entry_name(name : str):
     return emoji.replace_emoji(name).lstrip() 
 
+
+def is_task_time_entry(name: str):
+    decoded_name = emoji.demojize(name)
+    # task entries start either with a :thumbs_up: or a :check_mark_button: emoji
+    return decoded_name.startswith(":thumbs_up:") | decoded_name.startswith(":check_mark_button:")
+
+
 def get_task_events_since(since_days: int = 0) -> List[ReclaimTaskEvent]:
     date_now = datetime.now(tz.tzutc()).date()
     date_since = date_now - timedelta(days=since_days)
     date_end = date_now + timedelta(days = 1) # end date is exclusive
     events = ReclaimTaskEvent.search(date_since, date_end)
-    task_names = get_reclaim_task_names()
-    print(task_names)
-    [print(get_clean_time_entry_name(event.name)) for event in events]
-    return [event for event in events if get_clean_time_entry_name(event.name) in task_names]
+    return [event for event in events if is_task_time_entry(event.name)]
 
 
 def get_events_date_range(from_date: date, to_date: date):

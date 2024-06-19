@@ -2,6 +2,7 @@ from datetime import datetime
 import re
 from typing import Union, Dict, TypeVar, List
 import difflib
+from dateutil import tz
 
 from better_rich_prompts.prompt import ListPrompt
 from rich import print as rprint
@@ -82,6 +83,23 @@ def pwarning(msg: str):
 
 def perror(msg: str):
     rprint(f"[bold red]Error: {msg}[/bold red]")
+
+
+def plogtime(start_time: datetime, end_time: datetime, task_name: str):
+    time_format = "%H:%M"
+    local_zone = tz.gettz()
+
+    if start_time.tzinfo is None:
+        raise ValueError("start_time has to be timezone aware.")
+
+    if end_time.tzinfo is None:
+        raise ValueError("end_time has to be timezone aware.")
+
+
+    rprint(
+        (f"Logged work from {start_time.astimezone(local_zone).strftime(time_format)} "
+         f"to {end_time.astimezone(local_zone).strftime(time_format)} for {task_name}")
+    )
 
 
 def generate_things_id_tag(things_task) -> str:
