@@ -366,9 +366,9 @@ def display_current_task():
     if current_task is None:
         utils.perror("No task is currently tracked in toggl")
         return
-    rprint((f"Current task: {current_task.description}\nStarted at:",
+    rprint(f"Current task: {current_task.description}\nStarted at:",
            f"{toggl_handler.get_start_time(current_task)
-                .astimezone(tz.gettz()).strftime("%H:%M")}"))
+                .astimezone(tz.gettz()).strftime("%H:%M")}")
 
 
 @app.command("sync")
