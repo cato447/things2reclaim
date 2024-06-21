@@ -15,6 +15,9 @@ reclaim-sdk = {git = "https://github.com/cato447/reclaim-sdk"}
 rich = "^13.7.1"
 typer = {extras = ["all"], version = "^0.12.3"}
 
+[tool.pytest.ini_options]
+pythonpath = [".", "things2reclaim"]
+
 [tool.poetry.scripts]
 task-automation = 'things2reclaim.things2reclaim:main'
 
