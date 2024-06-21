@@ -1,5 +1,4 @@
 from datetime import datetime, date, timedelta
-from pathlib import Path
 from typing import List, Dict, Pattern, Optional
 import re
 
@@ -11,8 +10,9 @@ from reclaim_sdk.models.task import ReclaimTask
 from reclaim_sdk.models.task_event import ReclaimTaskEvent
 
 from deadline_status import DeadlineStatus 
+import utils
 
-CONFIG_PATH = Path("config/.reclaim.toml")
+CONFIG_PATH = utils.get_project_root() / "things2reclaim/config/.reclaim.toml"
 
 _config = {}
 
@@ -64,10 +64,6 @@ def get_project(task: ReclaimTask):
     return task.name.split(" ")[0]
 
 
-def get_clean_time_entry_name(name : str):
-    return emoji.replace_emoji(name).lstrip() 
-
-
 def is_task_time_entry(name: str):
     decoded_name = emoji.demojize(name)
     # task entries start either with a :thumbs_up: or a :check_mark_button: emoji
@@ -80,7 +76,6 @@ def get_task_events_since(since_days: int = 0) -> List[ReclaimTaskEvent]:
     date_end = date_now + timedelta(days = 1) # end date is exclusive
     events = ReclaimTaskEvent.search(date_since, date_end)
     return [event for event in events if is_task_time_entry(event.name)]
-
 
 def get_events_date_range(from_date: date, to_date: date):
     return ReclaimTaskEvent.search(from_date, to_date)
@@ -97,13 +92,6 @@ def log_work_for_task(task: ReclaimTask, start: datetime, end: datetime):
     """
     start and end are in Europe/Berlin timezone
     """
-    utc = tz.tzutc()
-    if start.tzinfo is None:
-        raise ValueError("start is not timezone aware")
-
-    if end.tzinfo is None:
-        raise ValueError("end is not timezone aware")
-
     if not task.is_scheduled:
         raise ValueError("Task is not scheduled")
 
@@ -111,10 +99,20 @@ def log_work_for_task(task: ReclaimTask, start: datetime, end: datetime):
         raise ValueError("Event list is empty")
 
     last_event: ReclaimTaskEvent = task.events[-1]
+    adjust_time_entry(last_event, start, end)
 
-    last_event.start = start.astimezone(utc)
-    last_event.end = end.astimezone(utc)
-    last_event.save()
+
+def adjust_time_entry(time_entry: ReclaimTaskEvent, start: datetime, end: datetime):
+    utc = tz.tzutc()
+    if start.tzinfo is None:
+        raise ValueError("start is not timezone aware")
+
+    if end.tzinfo is None:
+        raise ValueError("end is not timezone aware")
+
+    time_entry.start = start.astimezone(utc)
+    time_entry.end = end.astimezone(utc)
+    time_entry.save()
 
 
 def finish_task(task: ReclaimTask):

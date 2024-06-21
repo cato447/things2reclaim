@@ -1,10 +1,10 @@
 #!/opt/homebrew/Caskroom/miniconda/base/envs/things-automation/bin/python3
 
 import sqlite3
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, time
 from typing import Dict, List, Optional, Union
 import tomllib
+import itertools
 
 from dateutil import tz
 from rich import print as rprint
@@ -22,13 +22,13 @@ import toggl_handler
 import utils
 from database_handler import UploadedTasksDB
 
-CONFIG_PATH = Path("config/.things2reclaim.toml")
+CONFIG_PATH = utils.get_project_root() / "things2reclaim/config/.things2reclaim.toml"
 
 _config = {}
 with open(CONFIG_PATH, "rb") as f:
     _config = tomllib.load(f)
 
-DATABASE_PATH = _config["database"]["path"]
+DATABASE_PATH = utils.get_project_root() / _config["database"]["path"]
 
 app = typer.Typer(
     add_completion=False, no_args_is_help=True
@@ -113,36 +113,24 @@ def initialize_uploaded_database(verbose: bool = False):
 
 
 @app.command("upload")
-def upload_things_to_reclaim(verbose: bool = False):
+def upload_things_to_reclaim():
     """
     Upload things tasks to reclaim
     """
-    projects = things_handler.extract_uni_projects()
-    reclaim_task_names = reclaim_handler.get_reclaim_task_names()
-    tasks_uploaded = 0
+    tasks = things_handler.get_all_things_tasks()
     with UploadedTasksDB(DATABASE_PATH) as db:
-        for project in projects:
-            things_tasks = things_handler.get_tasks_for_project(project)
-            for things_task in things_tasks:
-                full_task_name = things_handler.full_name(
-                    things_task=things_task)
-                if full_task_name not in reclaim_task_names:
-                    tasks_uploaded += 1
-                    print(f"Creating task {full_task_name} in Reclaim")
-                    things_to_reclaim(things_task)
-                    db.add_uploaded_task(things_task["uuid"])
-                else:
-                    if verbose:
-                        print(
-                            f"Task {things_task['title']} \
-                                    already exists in Reclaim")
-    if tasks_uploaded == 0:
-        rprint("No new tasks were found")
-    elif tasks_uploaded == 1:
-        rprint(f"Uploaded {tasks_uploaded} task{
-               's' if tasks_uploaded > 1 else ''}")
+        uploaded_task_ids = db.get_all_uploaded_tasks()
+        tasks_to_upload = [task for task in tasks if task["uuid"] not in uploaded_task_ids]
+        if not tasks_to_upload:
+            print("No new tasks were found")
+        else:
+            for task in tasks_to_upload:
+                print(f"Creating task {things_handler.full_name(task)} in Reclaim")
+                things_to_reclaim(task)
+                db.add_uploaded_task(task["uuid"])
+            print(f"Uploaded {len(tasks_to_upload)} task{'s' if len(tasks_to_upload) > 1 else ''}")
 
-
+    
 @app.command("list")
 def list_reclaim_tasks(subject: Annotated[Optional[str],
                                           typer.Argument()] = None):
@@ -315,36 +303,46 @@ def remove_finished_tasks_from_things():
     Complete finished reclaim tasks in things
     """
     reclaim_things_uuids = reclaim_handler.get_reclaim_things_ids()
-    finished_someting = False
-    for task in things_handler.get_all_uploaded_things_tasks():
-        if task["uuid"] not in reclaim_things_uuids:
-            finished_someting = True
+    tasks_to_be_removed = [task for task in things_handler.get_all_uploaded_things_tasks() 
+                           if task["uuid"] not in reclaim_things_uuids]
+    if not tasks_to_be_removed:
+        print("Reclaim and Things are synced!")
+    else:
+        for task in tasks_to_be_removed: 
             print(
                 f"Found completed task: {
                     things_handler.full_name(things_task=task)}"
             )
             finish_task(task["uuid"])
 
-    if not finished_someting:
-        print("Reclaim and Things are synced")
-
-
 @app.command("tracking")
-def sync_toggl_reclaim_tracking():
-    since_days = 0
-    reclaim_handler.get_reclaim_tasks()
+def sync_toggl_reclaim_tracking(since_days : Annotated[int, typer.Argument()] = 0):
     toggl_time_entries = toggl_handler.get_time_entries_since(since_days = since_days) # end date is inclusive 
     if toggl_time_entries is None:
-        utils.pwarning("No tasks tracked today in Toggl")
+        utils.pwarning(f"No tasks tracked in Toggl since {since_days} days")
         return
     reclaim_time_entries = reclaim_handler.get_task_events_since(since_days = since_days) # end date is inclusive 
-    reclaim_time_entry_names = [reclaim_handler.get_clean_time_entry_name(time_entry.name) for time_entry in reclaim_time_entries]
-    missing_reclaim_entries = [time_entry for time_entry in toggl_time_entries if time_entry.description not in reclaim_time_entry_names]
+    reclaim_time_entries_dict = {utils.get_clean_time_entry_name(k) : list(g) for k,g in itertools.groupby(reclaim_time_entries, lambda r : r.name)}
+    non_existent_time_entries = [time_entry for time_entry in toggl_time_entries if time_entry.description not in reclaim_time_entries_dict.keys()]
+    # add all existing mismatched_time_entries
+    time_entries_to_adjust : Dict[toggl_handler.TimeEntry, reclaim_handler.ReclaimTaskEvent] = {}
+    for toggl_time_entry in toggl_time_entries:
+        if toggl_time_entry.description in reclaim_time_entries_dict.keys():
+            nearest_entry = utils.nearest_time_entry(reclaim_time_entries_dict.get(toggl_time_entry.description), toggl_time_entry) #pyright: ignore
+            if toggl_time_entry in time_entries_to_adjust:
+                time_entries_to_adjust[toggl_time_entry] = utils.nearest_time_entry([time_entries_to_adjust[toggl_time_entry], nearest_entry], toggl_time_entry) #pyright: ignore
+            elif nearest_entry is not None:
+                 time_entries_to_adjust[toggl_time_entry] = nearest_entry
 
-    if not missing_reclaim_entries:
+    rprint(non_existent_time_entries)
+    rprint(time_entries_to_adjust)
+    return
+
+
+    if not mismatched_time_entries: 
         utils.pinfo("Toggl and Reclaim time entries are synced.")
     else:
-        for time_entry in missing_reclaim_entries:
+        for time_entry in mismatched_time_entries:
             name = time_entry.description
             if not name:
                 raise ValueError("Toggl time entry has empty description")
@@ -353,10 +351,21 @@ def sync_toggl_reclaim_tracking():
                 utils.pwarning(f"Couldn't find {time_entry.description} in Reclaim.")
                 continue
 
-            start = toggl_handler.get_start_time(time_entry)
-            stop = toggl_handler.get_stop_time(time_entry)
+            toggl_start = toggl_handler.get_start_time(time_entry)
+            toggl_stop = toggl_handler.get_stop_time(time_entry)
 
-            reclaim_handler.log_work_for_task(reclaim_task, start, stop)
+            if toggl_start.tzinfo is None:
+                raise ValueError("Toggl start time is not timezone aware")
+            if toggl_stop.tzinfo is None:
+                raise ValueError("Toggl stop time is not timezone aware")
+
+
+
+            reclaim_time_entry = reclaim_time_entries_dict[reclaim_task.name]
+            if reclaim_time_entry is None:
+                reclaim_handler.log_work_for_task(reclaim_task, start, stop)
+            else:
+                reclaim_handler.adjust_time_entry(reclaim_time_entry, start, stop)
             utils.plogtime(start, stop, reclaim_task.name)
 
 
@@ -372,7 +381,7 @@ def display_current_task():
 
 
 @app.command("sync")
-def sync_things_and_reclaim(verbose: bool = False):
+def sync_things_and_reclaim():
     """
     Sync tasks between things and reclaim
     First updated all finished tasks in reclaim to completed in things
@@ -382,7 +391,7 @@ def sync_things_and_reclaim(verbose: bool = False):
     remove_finished_tasks_from_things()
     rprint("---------------------------------------------")
     utils.pinfo("Pushing to Reclaim")
-    upload_things_to_reclaim(verbose=verbose)
+    upload_things_to_reclaim()
     rprint("---------------------------------------------")
 
 

@@ -1,18 +1,18 @@
 from typing import Dict, List
-from pathlib import Path
 import tomllib
 
 import things
 
 from database_handler import UploadedTasksDB
+import utils
 
 _config = {}
-CONFIG_PATH = Path("config/.things2reclaim.toml")
+CONFIG_PATH = utils.get_project_root() / "things2reclaim/config/.things2reclaim.toml"
 with open(CONFIG_PATH, "rb") as f:
     _config = tomllib.load(f)
 
 
-DATABASE_PATH = _config["database"]["path"]
+DATABASE_PATH = utils.get_project_root() / _config["database"]["path"]
 
 
 def extract_uni_projects():
@@ -30,6 +30,10 @@ def complete(task_id: str):
 
 def get_tasks_for_project(project) -> Dict | List[Dict]:
     return things.tasks(project=project["uuid"], type="to-do")
+
+
+def is_equal_fullname(things_task : Dict, name : str):
+    return full_name(things_task=things_task) == name 
 
 
 def get_all_things_tasks() -> List:

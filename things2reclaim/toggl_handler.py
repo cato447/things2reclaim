@@ -1,6 +1,5 @@
 import difflib
 from datetime import datetime, timedelta, date, time
-from pathlib import Path
 import tomllib
 from typing import List
 
@@ -9,9 +8,11 @@ from better_rich_prompts.prompt import ListPrompt
 from dateutil import tz
 from toggl_python.entities import TimeEntry
 
+import utils
+
 _config = {}
 
-CONFIG_PATH = Path("config/.toggl.toml")
+CONFIG_PATH = utils.get_project_root() / "things2reclaim/config/.toggl.toml"
 with open(CONFIG_PATH, "rb") as f:
     _config = tomllib.load(f)
 
@@ -32,6 +33,8 @@ time_entry_editor = toggl_python.WorkspaceTimeEntries(
 def get_time_entry(time_entry_id: int) -> toggl_python.TimeEntry:
     return toggl_python.TimeEntries(auth=auth).retrieve(time_entry_id)
 
+def delete_time_entry(time_entry_id: int) -> bool:
+    return time_entry_editor.delete_timeentry(time_entry_id)
 
 def get_start_time(time_entry : toggl_python.TimeEntry):
     return time_entry.start() if callable(time_entry.start) else time_entry.start

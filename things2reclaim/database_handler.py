@@ -1,4 +1,5 @@
 import sqlite3
+from typing import List
 
 
 class UploadedTasksDB:
@@ -32,7 +33,7 @@ class UploadedTasksDB:
         cursor.execute(insert_statement, [task_id])
         self.conn.commit()
 
-    def get_all_uploaded_tasks(self):
+    def get_all_uploaded_tasks(self) -> List[str]:
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM uploaded_tasks")
         rows = cursor.fetchall()

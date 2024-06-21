@@ -1,13 +1,15 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
-from typing import Union, Dict, TypeVar, List
+from typing import Union, Dict, TypeVar, List, Optional
 import difflib
 from dateutil import tz
 
+import emoji
+from pathlib import Path
 from better_rich_prompts.prompt import ListPrompt
 from rich import print as rprint
-
-import things_handler
+from toggl_python import TimeEntry
+from reclaim_sdk.models.task_event import ReclaimTaskEvent
 
 TIME_PATTERN = (
     r"((\d+\.?\d*) (hours|hrs|hour|hr|h))? ?((\d+\.?\d*) (mins|min|minutes|minute|m))?"
@@ -34,6 +36,21 @@ def calculate_time_on_unit(tag_value: str) -> float:
         time += float(mins) / 60
 
     return time
+
+
+def get_start_time(toggl_time_entry: TimeEntry):
+    return toggl_time_entry.start() if callable(toggl_time_entry.start) else toggl_time_entry.start
+
+
+def get_stop_time(time_entry: TimeEntry):
+    if time_entry.stop is None:
+        return get_start_time(time_entry) + timedelta(seconds=time_entry.duration) 
+    else:
+        return time_entry.stop() if callable(time_entry.stop) else time_entry.stop
+
+
+def get_clean_time_entry_name(name : str):
+    return emoji.replace_emoji(name).lstrip() 
 
 
 def map_tag_values(
@@ -72,6 +89,45 @@ def get_closest_match(name: str, candidates: Dict[str, T]) -> T | None:
 
     return candidates[ListPrompt.ask("Select a candidate", possible_candidates)]
 
+
+def nearest_time_entry(items: Optional[List[ReclaimTaskEvent]], pivot: TimeEntry) -> Optional[ReclaimTaskEvent]:
+    if not items:
+        return None
+    return min(items, key=lambda x: abs(x.start - get_start_time(pivot)))
+
+
+def is_matching_time_entry(toggl_time_entry : Optional[TimeEntry], reclaim_time_entry : Optional[ReclaimTaskEvent]):
+    if toggl_time_entry is None or reclaim_time_entry is None:
+        print("One is none")
+        return False
+    if toggl_time_entry.description != get_clean_time_entry_name(reclaim_time_entry.name):
+        print(f"toggl title: {toggl_time_entry.description}")
+        print(f"reclaim title: {get_clean_time_entry_name(reclaim_time_entry.name)}")
+        return False
+
+    toggl_start = get_start_time(toggl_time_entry)
+    toggl_stop = get_stop_time(toggl_time_entry)
+    reclaim_start = reclaim_time_entry.start
+    reclaim_end = reclaim_time_entry.end
+
+    if toggl_start.tzinfo is None:
+        raise ValueError("Toggl start is not timezone aware.")
+    if toggl_stop.tzinfo is None:
+        raise ValueError("Toggl stop is not timezone aware.")
+    if reclaim_start.tzinfo is None:
+        raise ValueError("Reclaim start is not timezone aware.")
+    if reclaim_end.tzinfo is None:
+        raise ValueError("Reclaim stop is not timezone aware.")
+
+    if toggl_start.astimezone(tz.tzutc()) != reclaim_start.astimezone(tz.tzutc()):
+        print(f"toggl_start: {toggl_start.isoformat()}")
+        print(f"reclaim_start: {reclaim_start.isoformat()}")
+        return False
+    if toggl_stop.astimezone(tz.tzutc()) != reclaim_end.astimezone(tz.tzutc()):
+        print(f"toggl_end: {toggl_stop.isoformat()}")
+        print(f"reclaim_end: {reclaim_end.isoformat()}")
+        return False
+    return True
 
 def pinfo(msg: str):
     rprint(f"[bold white]{msg}[/bold white]")
@@ -122,5 +178,5 @@ def reclaim_task_pretty_print(task):
     print(f"\tDuration: {task.duration}")
 
 
-def things_reclaim_is_equal(things_task, reclaim_task) -> bool:
-    return things_handler.full_name(things_task=things_task) == reclaim_task.name
+def get_project_root() -> Path:
+    return Path(__file__).parent.parent
