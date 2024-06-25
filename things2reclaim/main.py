@@ -1,10 +1,11 @@
 #!/opt/homebrew/Caskroom/miniconda/base/envs/things-automation/bin/python3
 
 import sqlite3
-from datetime import datetime, time
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 import tomllib
 import itertools
+import time
 
 from dateutil import tz
 from rich import print as rprint
@@ -113,7 +114,7 @@ def initialize_uploaded_database(verbose: bool = False):
 
 
 @app.command("upload")
-def upload_things_to_reclaim():
+def upload_things_to_reclaim(dry_run : bool = False):
     """
     Upload things tasks to reclaim
     """
@@ -126,8 +127,9 @@ def upload_things_to_reclaim():
         else:
             for task in tasks_to_upload:
                 print(f"Creating task {things_handler.full_name(task)} in Reclaim")
-                things_to_reclaim(task)
-                db.add_uploaded_task(task["uuid"])
+                if not dry_run:
+                    things_to_reclaim(task)
+                    db.add_uploaded_task(task["uuid"])
             print(f"Uploaded {len(tasks_to_upload)} task{'s' if len(tasks_to_upload) > 1 else ''}")
 
     
@@ -298,7 +300,7 @@ def print_time_needed():
 
 
 @app.command("finished")
-def remove_finished_tasks_from_things():
+def remove_finished_tasks_from_things(dry_run : bool = False):
     """
     Complete finished reclaim tasks in things
     """
@@ -313,7 +315,9 @@ def remove_finished_tasks_from_things():
                 f"Found completed task: {
                     things_handler.full_name(things_task=task)}"
             )
-            finish_task(task["uuid"])
+            if not dry_run:
+                finish_task(task["uuid"])
+
 
 @app.command("tracking")
 def sync_toggl_reclaim_tracking(since_days : Annotated[int, typer.Argument()] = 0):
@@ -381,17 +385,18 @@ def display_current_task():
 
 
 @app.command("sync")
-def sync_things_and_reclaim():
+def sync_things_and_reclaim(dry_run : bool = False):
     """
     Sync tasks between things and reclaim
     First updated all finished tasks in reclaim to completed in things
     Then upload all new tasks from things to reclaim
     """
     utils.pinfo("Pulling from Reclaim")
-    remove_finished_tasks_from_things()
+    remove_finished_tasks_from_things(dry_run)
     rprint("---------------------------------------------")
+    time.sleep(1) # stop tool from uploading recently finished tasks
     utils.pinfo("Pushing to Reclaim")
-    upload_things_to_reclaim()
+    upload_things_to_reclaim(dry_run)
     rprint("---------------------------------------------")
 
 
