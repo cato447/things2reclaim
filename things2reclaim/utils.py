@@ -16,7 +16,8 @@ TIME_PATTERN = (
 )
 pattern = re.compile(TIME_PATTERN)
 
-T = TypeVar("T") # generic type
+T = TypeVar("T")  # generic type
+
 
 def calculate_time_on_unit(tag_value: str) -> float:
     # This is a regex to match time in the format of 1h 30m
@@ -39,18 +40,22 @@ def calculate_time_on_unit(tag_value: str) -> float:
 
 
 def get_start_time(toggl_time_entry: TimeEntry):
-    return toggl_time_entry.start() if callable(toggl_time_entry.start) else toggl_time_entry.start
+    return (
+        toggl_time_entry.start()
+        if callable(toggl_time_entry.start)
+        else toggl_time_entry.start
+    )
 
 
 def get_stop_time(time_entry: TimeEntry):
     if time_entry.stop is None:
-        return get_start_time(time_entry) + timedelta(seconds=time_entry.duration) 
+        return get_start_time(time_entry) + timedelta(seconds=time_entry.duration)
     else:
         return time_entry.stop() if callable(time_entry.stop) else time_entry.stop
 
 
-def get_clean_time_entry_name(name : str):
-    return emoji.replace_emoji(name).lstrip() 
+def get_clean_time_entry_name(name: str):
+    return emoji.replace_emoji(name).lstrip()
 
 
 def map_tag_values(
@@ -90,17 +95,24 @@ def get_closest_match(name: str, candidates: Dict[str, T]) -> T | None:
     return candidates[ListPrompt.ask("Select a candidate", possible_candidates)]
 
 
-def nearest_time_entry(items: Optional[List[ReclaimTaskEvent]], pivot: TimeEntry) -> Optional[ReclaimTaskEvent]:
+def nearest_time_entry(
+    items: Optional[List[ReclaimTaskEvent]], pivot: TimeEntry
+) -> Optional[ReclaimTaskEvent]:
     if not items:
         return None
     return min(items, key=lambda x: abs(x.start - get_start_time(pivot)))
 
 
-def is_matching_time_entry(toggl_time_entry : Optional[TimeEntry], reclaim_time_entry : Optional[ReclaimTaskEvent]):
+def is_matching_time_entry(
+    toggl_time_entry: Optional[TimeEntry],
+    reclaim_time_entry: Optional[ReclaimTaskEvent],
+):
     if toggl_time_entry is None or reclaim_time_entry is None:
         print("One is none")
         return False
-    if toggl_time_entry.description != get_clean_time_entry_name(reclaim_time_entry.name):
+    if toggl_time_entry.description != get_clean_time_entry_name(
+        reclaim_time_entry.name
+    ):
         print(f"toggl title: {toggl_time_entry.description}")
         print(f"reclaim title: {get_clean_time_entry_name(reclaim_time_entry.name)}")
         return False
@@ -129,6 +141,7 @@ def is_matching_time_entry(toggl_time_entry : Optional[TimeEntry], reclaim_time_
         return False
     return True
 
+
 def pinfo(msg: str):
     rprint(f"[bold white]{msg}[/bold white]")
 
@@ -151,10 +164,11 @@ def plogtime(start_time: datetime, end_time: datetime, task_name: str):
     if end_time.tzinfo is None:
         raise ValueError("end_time has to be timezone aware.")
 
-
     rprint(
-        (f"Logged work from {start_time.astimezone(local_zone).strftime(time_format)} "
-         f"to {end_time.astimezone(local_zone).strftime(time_format)} for {task_name}")
+        (
+            f"Logged work from {start_time.astimezone(local_zone).strftime(time_format)} "
+            f"to {end_time.astimezone(local_zone).strftime(time_format)} for {task_name}"
+        )
     )
 
 

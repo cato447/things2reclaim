@@ -32,8 +32,8 @@ def get_tasks_for_project(project) -> Dict | List[Dict]:
     return things.tasks(project=project["uuid"], type="to-do")
 
 
-def is_equal_fullname(things_task : Dict, name : str):
-    return full_name(things_task=things_task) == name 
+def is_equal_fullname(things_task: Dict, name: str):
+    return full_name(things_task=things_task) == name
 
 
 def get_all_things_tasks() -> List:

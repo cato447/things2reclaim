@@ -33,18 +33,19 @@ time_entry_editor = toggl_python.WorkspaceTimeEntries(
 def get_time_entry(time_entry_id: int) -> toggl_python.TimeEntry:
     return toggl_python.TimeEntries(auth=auth).retrieve(time_entry_id)
 
+
 def delete_time_entry(time_entry_id: int) -> bool:
     return time_entry_editor.delete_timeentry(time_entry_id)
 
-def get_start_time(time_entry : toggl_python.TimeEntry):
+
+def get_start_time(time_entry: toggl_python.TimeEntry):
     return time_entry.start() if callable(time_entry.start) else time_entry.start
 
 
 def get_stop_time(time_entry: toggl_python.TimeEntry):
     if time_entry.stop is None:
-        return get_start_time(time_entry) + timedelta(seconds=time_entry.duration) 
-    else:
-        return time_entry.stop() if callable(time_entry.stop) else time_entry.stop
+        raise ValueError(f"TimeEntry {time_entry.description} is still running")
+    return time_entry.stop() if callable(time_entry.stop) else time_entry.stop
 
 
 def get_time_entries_date_range(from_date: date, to_date: date):
@@ -115,11 +116,14 @@ def create_task_time_entry(
         duration=duration,
     )
 
-    if start is not None:
+    if start is None:
+        start = datetime.now(tz.tzutc())
+    else:
         if start.tzinfo is None:
             raise ValueError("start has to be timezone aware")
         start = start.astimezone(tz.tzutc())
-        time_entry.start = start
+
+    time_entry.start = start
 
     tag = get_approriate_tag(description)
     if tag:
@@ -132,14 +136,21 @@ def start_task(description: str, project: str):
     time_entry_editor.create(create_task_time_entry(description, project))
 
 
+def stop_task(task: TimeEntry) -> TimeEntry | None:
+    if time_entry_editor.DETAIL_URL is None:
+        raise ValueError("DetailURL not set")
+
+    url = time_entry_editor.BASE_URL.join(
+        time_entry_editor.DETAIL_URL.format(id=task.id)
+    )
+    response = time_entry_editor.patch(url)
+    data = response.json()
+    if data:
+        return TimeEntry(**data)
+
+
 def stop_current_task():
     cur_task = get_current_time_entry()
     if cur_task is None:
         raise RuntimeError("No time entry is currently running")
-    if time_entry_editor.DETAIL_URL is None:
-        raise ValueError("DetailURL not set")
-    url = time_entry_editor.BASE_URL.join(
-        time_entry_editor.DETAIL_URL.format(id=cur_task.id)
-    )
-
-    return time_entry_editor.patch(url)
+    return stop_task(cur_task)
