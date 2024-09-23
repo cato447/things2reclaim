@@ -24,6 +24,14 @@ def get_task(task_id: str):
     return things.get(task_id)
 
 
+def get_task_by_name(task_name: str):
+    tasks = {task["name"] : task for task in get_all_things_tasks()}
+    if task_name not in tasks.keys():
+        return utils.get_closest_match(task_name, tasks)
+    else:
+        return tasks[task_name]
+
+
 def complete(task_id: str):
     things.complete(task_id)
 

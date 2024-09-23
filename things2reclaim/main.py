@@ -307,6 +307,23 @@ def print_time_needed(subject: Annotated[Optional[str], typer.Argument()] = None
         )
 
 
+@app.command("remove")
+def remove_task(
+        task_name_parts: Annotated[List[str], typer.Argument(help="Task to start")]
+        ):
+    task_name = (" ").join(task_name_parts)
+    task = reclaim_handler.get_reclaim_task_fuzzy(task_name)
+    if task is None:
+        things_task = things_handler.get_task_by_name(task_name)
+        if things_task is None:
+            utils.perror(f"No task with name {task_name} found in things")
+            return
+        else:
+            task = things_task["uuid"]
+    finish_task(task)
+    utils.pinfo("Removed task")
+
+
 @app.command("finished")
 def remove_finished_tasks_from_things(dry_run: bool = False):
     """
@@ -387,12 +404,39 @@ def display_current_task():
                 .astimezone(tz.gettz()).strftime("%H:%M")}",
     )
 
+@app.command("removeDeleted")
+def removeDeletedTasks(dry_run: bool = False):
+    """
+    Removes all tasks from reclaim that were deleted in things
+    """
+    with UploadedTasksDB(DATABASE_PATH) as db:
+        uploaded_task_ids = db.get_all_uploaded_tasks()
+    things_task_ids = [task["uuid"] for task in things_handler.get_all_things_tasks()]
+    ids_to_be_removed = [
+        id 
+        for id in uploaded_task_ids
+        if id not in things_task_ids
+    ]
+    if len(ids_to_be_removed) == 0:
+        utils.pinfo("No deleted tasks found")
+    else:
+        utils.pinfo(f"Delting {len(ids_to_be_removed)} removed tasks in reclaim")
+        with UploadedTasksDB(DATABASE_PATH) as db:
+            for task_id in ids_to_be_removed:
+                reclaim_task = reclaim_handler.get_by_things_id(task_id)
+                if reclaim_task is None:
+                    continue
+                utils.pinfo(f"Removing {reclaim_task.name}")
+                if not dry_run:
+                    reclaim_handler.finish_task(reclaim_task)
+                    db.remove_uploaded_task(task_id)
+
 
 @app.command("sync")
 def sync_things_and_reclaim(dry_run: bool = False):
     """
     Sync tasks between things and reclaim
-    First updated all finished tasks in reclaim to completed in things
+    First update all finished tasks in reclaim to completed in things
     Then upload all new tasks from things to reclaim
     """
     utils.pinfo("Pulling from Reclaim")

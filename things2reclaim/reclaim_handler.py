@@ -36,6 +36,16 @@ def get_reclaim_task(name: str) -> Optional[ReclaimTask]:
         return res[0]
 
 
+def get_reclaim_task_fuzzy(task_name: str) -> Optional[ReclaimTask]:
+    tasks: Dict[str, ReclaimTask] = {
+        task.name: task for task in get_reclaim_tasks()
+    }
+    if task_name not in tasks.keys():
+        return utils.get_closest_match(task_name, tasks)
+    else:
+        return tasks[task_name]
+
+
 def get_reclaim_tasks() -> List[ReclaimTask]:
     return ReclaimTask.search()
 
@@ -131,6 +141,16 @@ def adjust_time_entry(time_entry: ReclaimTaskEvent, start: datetime, end: dateti
 
 def finish_task(task: ReclaimTask):
     task.mark_complete()
+
+
+def get_by_things_id(id: str):
+    tasks = [task for task in ReclaimTask.search() if get_things_id(task) == id]
+    if len(tasks) == 0:
+        return None
+    elif len(tasks) == 1:
+        return tasks[0]
+    else:
+        raise ValueError("multiple reclaims tasks are mapped to the same things id")
 
 
 def get_things_id(task: ReclaimTask):
