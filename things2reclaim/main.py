@@ -20,6 +20,7 @@ import reclaim_handler
 from deadline_status import DeadlineStatus
 import things_handler
 import toggl_handler
+import task_scheduler_handler
 import utils
 from database_handler import UploadedTasksDB
 
@@ -34,8 +35,7 @@ DATABASE_PATH = utils.get_project_root() / _config["database"]["path"]
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 console = Console()
 
-
-def things_to_reclaim(things_task):
+def generate_params_dict(things_task):
     tags = things_handler.get_task_tags(things_task)
     estimated_time = tags.get("EstimatedTime")
     if estimated_time is None:
@@ -62,8 +62,16 @@ def things_to_reclaim(things_task):
         )
 
     utils.map_tag_values(things_task, tags, params)
+    return params
 
+
+def things_to_reclaim(things_task):
+    params = generate_params_dict(things_task)
     reclaim_handler.create_reaclaim_task_from_dict(params)
+
+def things_to_task(things_task):
+    params = generate_params_dict(things_task)
+    task_scheduler_handler.create_task_from_dict(params)
 
 
 def finish_task(task: Union[reclaim_handler.ReclaimTask, str]):
@@ -452,6 +460,17 @@ def sync_things_and_reclaim(dry_run: bool = False):
     upload_things_to_reclaim(dry_run)
     rprint("---------------------------------------------")
 
+@app.command("upload_to_scheduler")
+def upload_to_scheduler(dry_run: bool = False):
+    """
+    Upload things tasks to task-scheduler
+    """
+    tasks = things_handler.get_all_things_tasks()
+    for task in tasks:
+        print(f"Creating task {things_handler.full_name(task)} in Task Scheduler")
+        if not dry_run:
+            things_to_task(task)
+    print(f"Uploaded {len(tasks)} task{'s' if len(tasks) > 1 else ''}")    
 
 if __name__ == "__main__":
     app()
